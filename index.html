@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>每日热量计算器</title>
+<link rel="stylesheet" href="css/style.css">
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#16a34a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+</head>
+<body>
+
+<div class="app-shell" id="app">
+  <!-- ===== Header ===== -->
+  <div class="page-header" id="pageHeader">
+    <h1 id="headerTitle">每日热量计算器</h1>
+    <p id="headerSub">科学管理你的热量</p>
+  </div>
+
+  <!-- ===== Page: Profile ===== -->
+  <div id="page-profile" class="page active">
+    <div class="card">
+      <div class="card-title">个人信息</div>
+      <div class="form-group">
+        <label>性别</label>
+        <select id="gender">
+          <option value="male">男</option>
+          <option value="female">女</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>年龄（岁）</label>
+          <input type="number" id="age" min="10" max="100" placeholder="25">
+        </div>
+        <div class="form-group">
+          <label>身高（cm）</label>
+          <input type="number" id="height" min="100" max="250" placeholder="175">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>体重（kg）</label>
+          <input type="number" id="weight" min="20" max="300" step="0.1" placeholder="70">
+        </div>
+        <div class="form-group">
+          <label>目标</label>
+          <select id="goal">
+            <option value="增肌" selected>增肌</option>
+            <option value="减肥">减肥</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>日常活动水平</label>
+        <select id="activityLevel">
+          <option value="sedentary">久坐不动（几乎不运动）</option>
+          <option value="light" selected>轻度活动（每周1-3天）</option>
+          <option value="moderate">中度活动（每周3-5天）</option>
+          <option value="active">高度活动（每周6-7天）</option>
+          <option value="extreme">极度活动（体力劳动/每天练）</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- BMR Result -->
+    <div id="bmrResultCard" class="bmr-result" style="display:none;">
+      <div class="bmr-label">基础代谢率 (BMR)</div>
+      <div class="bmr-value" id="bmrDisplay">0</div>
+      <div class="tdee-label">每日总消耗 (TDEE)</div>
+      <div class="tdee-value" id="tdeeDisplay">0 <span style="font-size:14px;font-weight:400;opacity:0.8;">kcal</span></div>
+    </div>
+
+    <!-- API Key setting -->
+    <div class="card">
+      <div class="card-title">AI 拍照识别设置（可选）</div>
+      <div class="form-group">
+        <label>Gemini API Key</label>
+        <input type="password" id="geminiKey" placeholder="输入你的 Gemini API Key">
+      </div>
+      <p style="font-size:12px;color:var(--gray-400);">免费申请：<a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--green-600)">aistudio.google.com/apikey</a></p>
+    </div>
+
+    <button class="btn btn-primary btn-block" id="saveProfileBtn">保存并开始</button>
+  </div>
+
+  <!-- ===== Page: Dashboard ===== -->
+  <div id="page-dashboard" class="page">
+    <!-- Ring & Net -->
+    <div class="card">
+      <div class="ring-container">
+        <div class="ring">
+          <svg width="120" height="120" viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--gray-100)" stroke-width="10"/>
+            <circle id="ringCircle" cx="60" cy="60" r="52" fill="none" stroke="var(--green-400)" stroke-width="10"
+              stroke-linecap="round" stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+          </svg>
+          <div class="ring-text">
+            <span class="num" id="ringPercent">0%</span>
+            <span class="unit">摄入/TDEE</span>
+          </div>
+        </div>
+      </div>
+      <div class="net-calorie">
+        <div class="net-label">今日净热量</div>
+        <div class="net-value" id="netCalDisplay">0</div>
+        <div class="net-label" id="netCalDesc">kcal</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-value blue" id="dashTdee">0</div>
+        <div class="stat-label">TDEE 目标</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value green" id="dashIntake">0</div>
+        <div class="stat-label">今日摄入</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value orange" id="dashBurn">0</div>
+        <div class="stat-label">今日消耗</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="dashProtein">0g</div>
+        <div class="stat-label">蛋白质摄入</div>
+      </div>
+    </div>
+
+    <!-- Suggestion -->
+    <div id="suggestionBox" class="tip-box">
+      <strong>建议</strong><br>
+      <span id="suggestionText">加载中...</span>
+    </div>
+  </div>
+
+  <!-- ===== Page: Food ===== -->
+  <div id="page-food" class="page">
+    <!-- Add Food Form -->
+    <div class="card">
+      <div class="card-title">添加食物</div>
+      <div class="autocomplete-wrap">
+        <div class="form-group">
+          <label>食物名称</label>
+          <input type="text" id="foodSearch" placeholder="输入食物名称搜索..." autocomplete="off">
+        </div>
+        <div class="autocomplete-list" id="foodAutocomplete"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>克重 (g)</label>
+          <input type="number" id="foodWeight" min="1" max="5000" placeholder="100">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary btn-block" id="addFoodBtn">添加</button>
+        </div>
+      </div>
+
+      <!-- Photo capture -->
+      <div class="photo-area">
+        <label class="photo-btn" id="cameraBtn">
+          <span class="photo-icon">📷</span>
+          <span>拍照识别</span>
+        </label>
+        <label class="photo-btn" id="uploadBtn">
+          <span class="photo-icon">🖼️</span>
+          <span>上传图片</span>
+        </label>
+        <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
+        <input type="file" id="uploadInput" accept="image/*" style="display:none">
+      </div>
+      <div id="aiLoading" style="display:none;text-align:center;padding:8px;">
+        <span class="loading"></span> AI 识别中...
+      </div>
+    </div>
+
+    <!-- Meal Tabs -->
+    <div class="meal-tabs">
+      <button class="meal-tab active" data-meal="breakfast">早餐</button>
+      <button class="meal-tab" data-meal="lunch">午餐</button>
+      <button class="meal-tab" data-meal="dinner">晚餐</button>
+      <button class="meal-tab" data-meal="snack">加餐</button>
+    </div>
+
+    <!-- Food Lists -->
+    <div id="foodListContainer">
+      <div class="empty-state">
+        <div class="empty-icon">🍽️</div>
+        <p>今天还没有记录食物</p>
+      </div>
+    </div>
+
+    <!-- Today Total -->
+    <div class="card" id="foodTotalCard" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:600;">今日总计</span>
+        <span style="font-weight:700;font-size:18px;color:var(--green-600);" id="foodTotalCal">0 kcal</span>
+      </div>
+      <div class="macro-row">
+        <div class="macro-item">
+          <div class="macro-value" id="foodTotalProtein">0g</div>
+          <div class="macro-label">蛋白质</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Page: Exercise ===== -->
+  <div id="page-exercise" class="page">
+    <div class="card">
+      <div class="card-title">添加运动</div>
+      <div class="form-group">
+        <label>运动类型</label>
+        <select id="exerciseSelect">
+          <option value="">请选择...</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>时长（分钟）</label>
+          <input type="number" id="exerciseDuration" min="1" max="600" placeholder="30">
+        </div>
+        <div class="form-group">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary btn-block" id="addExerciseBtn">添加</button>
+        </div>
+      </div>
+      <div id="exercisePreview" style="display:none;padding:8px 0;text-align:center;font-size:14px;color:var(--gray-600);">
+        预计消耗：<strong id="exerciseCalPreview" style="color:var(--orange-500);">0</strong> kcal
+      </div>
+    </div>
+
+    <!-- Exercise List -->
+    <div id="exerciseListContainer">
+      <div class="empty-state">
+        <div class="empty-icon">🏃</div>
+        <p>今天还没有运动记录</p>
+      </div>
+    </div>
+
+    <div class="card" id="exerciseTotalCard" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:600;">今日运动总计</span>
+        <span style="font-weight:700;font-size:18px;color:var(--orange-500);" id="exerciseTotalCal">0 kcal</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Page: History ===== -->
+  <div id="page-history" class="page">
+    <div class="card">
+      <div class="card-title">近7天热量趋势</div>
+      <div class="chart-container" id="chartContainer">
+        <div class="chart-bars" id="chartBars"></div>
+        <div class="chart-legend">
+          <span><span class="dot green"></span> 摄入</span>
+          <span><span class="dot orange"></span> 消耗</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">历史明细</div>
+      <div id="historyDetail">
+        <div class="empty-state">
+          <div class="empty-icon">📊</div>
+          <p>暂无历史数据</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Tab Bar ===== -->
+  <nav class="tab-bar">
+    <button class="tab-item" data-page="profile">
+      <span class="tab-icon">👤</span>
+      <span>个人</span>
+    </button>
+    <button class="tab-item active" data-page="dashboard">
+      <span class="tab-icon">📊</span>
+      <span>总览</span>
+    </button>
+    <button class="tab-item" data-page="food">
+      <span class="tab-icon">🍔</span>
+      <span>饮食</span>
+    </button>
+    <button class="tab-item" data-page="exercise">
+      <span class="tab-icon">🏋️</span>
+      <span>运动</span>
+    </button>
+    <button class="tab-item" data-page="history">
+      <span class="tab-icon">📈</span>
+      <span>趋势</span>
+    </button>
+  </nav>
+
+  <!-- ===== Camera Modal ===== -->
+  <div id="cameraModal" class="video-preview" style="display:none;">
+    <video id="cameraVideo" autoplay playsinline></video>
+    <div class="video-actions">
+      <button class="btn btn-secondary" id="cameraCancel">取消</button>
+      <button class="btn btn-primary" id="cameraCapture">拍照</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/storage.js"></script>
+<script src="js/bmr.js"></script>
+<script src="js/food-db.js"></script>
+<script src="js/exercise-db.js"></script>
+<script src="js/gemini.js"></script>
+<script src="js/app.js"></script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js');
+}
+</script>
+</body>
+</html>
